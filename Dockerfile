@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -28,6 +28,20 @@ RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
 ARG CIRCOM_VERSION=2.0.8
 RUN curl -fsSL "https://github.com/iden3/circom/releases/download/v${CIRCOM_VERSION}/circom-linux-amd64" -o /usr/local/bin/circom \
     && chmod +x /usr/local/bin/circom
+
+ARG RAPIDSNARK_VERSION=main
+RUN git clone https://github.com/iden3/rapidsnark.git /tmp/rapidsnark \
+    && cd /tmp/rapidsnark \
+    && git checkout ${RAPIDSNARK_VERSION} \
+    && git submodule update --init --recursive \
+    && ./build_gmp.sh host \
+    && mkdir -p build_prover && cd build_prover \
+    && cmake .. -DCMAKE_BUILD_TYPE=Release \
+    && make -j"$(nproc)" \
+    && cp src/prover /usr/local/bin/rapidsnark \
+    && chmod +x /usr/local/bin/rapidsnark \
+    && cd / \
+    && rm -rf /tmp/rapidsnark
 
 COPY docker/node-memory.patch /tmp/node-memory.patch
 RUN git clone https://github.com/nodejs/node.git /tmp/node \
