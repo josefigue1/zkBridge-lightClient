@@ -83,7 +83,7 @@ compile_part() {
         log_info "Constraints:"
         local constraints_info=$(snarkjs r1cs info "$r1cs_file" 2>/dev/null)
         echo "$constraints_info" | grep -E "Constraints|Private|Public|Labels" || true
-        local num_constraints=$(echo "$constraints_info" | grep "Constraints:" | awk '{print $3}')
+        local num_constraints=$(echo "$constraints_info" | grep -i "constraints" | grep -oE '[0-9]+' | head -1)
         if [ -n "$num_constraints" ]; then
             record_constraints "$part" "$num_constraints"
         fi

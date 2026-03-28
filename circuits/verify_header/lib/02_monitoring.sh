@@ -93,11 +93,17 @@ get_file_size_bytes() {
 format_size() {
     local bytes=$1
     if [ "$bytes" -ge 1073741824 ] 2>/dev/null; then
-        echo "$(echo "scale=2; $bytes/1073741824" | bc) GB"
+        local whole=$((bytes / 1073741824))
+        local frac=$(( (bytes % 1073741824) * 100 / 1073741824 ))
+        printf "%d.%02d GB" $whole $frac
     elif [ "$bytes" -ge 1048576 ] 2>/dev/null; then
-        echo "$(echo "scale=2; $bytes/1048576" | bc) MB"
+        local whole=$((bytes / 1048576))
+        local frac=$(( (bytes % 1048576) * 100 / 1048576 ))
+        printf "%d.%02d MB" $whole $frac
     elif [ "$bytes" -ge 1024 ] 2>/dev/null; then
-        echo "$(echo "scale=1; $bytes/1024" | bc) KB"
+        local whole=$((bytes / 1024))
+        local frac=$(( (bytes % 1024) * 10 / 1024 ))
+        printf "%d.%d KB" $whole $frac
     else
         echo "${bytes} B"
     fi

@@ -134,7 +134,9 @@ record_artifact_sizes() {
 compute_throughput() {
     local constraints=$1 ms=$2
     if [ "$ms" -gt 0 ] && [ "$constraints" -gt 0 ] 2>/dev/null; then
-        echo "$(echo "scale=1; $constraints * 1000 / $ms" | bc 2>/dev/null || echo 0)"
+        local whole=$(( constraints * 1000 / ms ))
+        local frac=$(( (constraints * 10000 / ms) % 10 ))
+        echo "${whole}.${frac}"
     else
         echo "0"
     fi
