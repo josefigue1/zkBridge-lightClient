@@ -100,6 +100,9 @@ record_timing() {
         proof)    aa_set TIMING_PROOF_MS "$part" "$ms";   TOTAL_PROOF_MS=$((TOTAL_PROOF_MS + ms)) ;;
         verify)   aa_set TIMING_VERIFY_MS "$part" "$ms";  TOTAL_VERIFY_MS=$((TOTAL_VERIFY_MS + ms)) ;;
     esac
+
+    # Auto-save: rewrite full JSON so `tail -f` or `watch cat` can track progress
+    [ -n "$TIMING_FILE" ] && save_timing_report 2>/dev/null || true
 }
 
 record_constraints() {
