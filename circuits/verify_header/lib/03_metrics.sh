@@ -101,8 +101,11 @@ record_timing() {
         verify)   aa_set TIMING_VERIFY_MS "$part" "$ms";  TOTAL_VERIFY_MS=$((TOTAL_VERIFY_MS + ms)) ;;
     esac
 
-    # Auto-save: rewrite full JSON so `tail -f` or `watch cat` can track progress
-    [ -n "$TIMING_FILE" ] && save_timing_report 2>/dev/null || true
+    # Auto-save: rewrite full JSON + v2 so `tail -f` or `watch cat` can track progress
+    if [ -n "$TIMING_FILE" ]; then
+        save_timing_report 2>/dev/null || true
+        save_metrics_v2_quiet 2>/dev/null || true
+    fi
 }
 
 record_constraints() {
@@ -321,4 +324,163 @@ print_timing_report() {
     done
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
+}
+
+# =============================================================================
+# Simple Metrics Report v2 (thesis-friendly)
+# =============================================================================
+
+save_metrics_v2() {
+    local end_ms=$(now_ms)
+    local total_ms=$((end_ms - PIPELINE_START_TIME_MS))
+    local v2_file="$LOG_DIR/metrics_v2_$(date '+%Y%m%d_%H%M%S').txt"
+
+    {
+        echo "=============================================="
+        echo "  METRICS REPORT v2"
+        echo "  $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "=============================================="
+        echo ""
+        echo "--- Hardware ---"
+        echo "  CPU:       $HW_CPU_MODEL"
+        echo "  Cores:     $HW_CPU_CORES"
+        echo "  RAM:       ${HW_RAM_TOTAL_MB} MB"
+        echo "  OS:        $HW_OS"
+        echo ""
+        echo "--- Software ---"
+        echo "  Circom:    $SW_CIRCOM"
+        echo "  Node:      $SW_NODE (max ${NODE_MEM} MB)"
+        echo "  Rapidsnark: $([ -n "$(find_rapidsnark 2>/dev/null)" ] && echo "yes" || echo "no")"
+        echo ""
+        echo "--- Total ---"
+        echo "  Pipeline:  $(format_duration_ms $total_ms)"
+        echo ""
+
+        # Compilation
+        echo "--- Compilacion ---"
+        for part in "${PARTS[@]}"; do
+            local ms=$(aa_get TIMING_COMPILE_MS "$part")
+            [ "$ms" -gt 0 ] 2>/dev/null && \
+                printf "  %-10s %s   (r1cs: %s)\n" "$part" "$(format_duration_ms $ms)" "$(format_size $(aa_get ARTIFACT_R1CS_BYTES "$part"))"
+        done
+        echo "  TOTAL:     $(format_duration_ms $TOTAL_COMPILE_MS)"
+        echo ""
+
+        # Witness
+        echo "--- Generacion de testigos ---"
+        for part in "${PARTS[@]}"; do
+            local ms=$(aa_get TIMING_WITNESS_MS "$part")
+            [ "$ms" -gt 0 ] 2>/dev/null && \
+                printf "  %-10s %s   (RSS: %s MB)\n" "$part" "$(format_duration_ms $ms)" "$(aa_get PEAK_RSS_WITNESS "$part")"
+        done
+        echo "  TOTAL:     $(format_duration_ms $TOTAL_WITNESS_MS)"
+        echo ""
+
+        # Trusted Setup
+        echo "--- Trusted Setup (zkey) ---"
+        for part in "${PARTS[@]}"; do
+            local ms=$(aa_get TIMING_ZKEY_MS "$part")
+            [ "$ms" -gt 0 ] 2>/dev/null && \
+                printf "  %-10s %s   (RSS: %s MB, zkey: %s)\n" "$part" "$(format_duration_ms $ms)" "$(aa_get PEAK_RSS_ZKEY "$part")" "$(format_size $(aa_get ARTIFACT_ZKEY_BYTES "$part"))"
+        done
+        echo "  TOTAL:     $(format_duration_ms $TOTAL_ZKEY_MS)"
+        echo ""
+
+        # Proof
+        echo "--- Generacion de pruebas ---"
+        for part in "${PARTS[@]}"; do
+            local ms=$(aa_get TIMING_PROOF_MS "$part")
+            [ "$ms" -gt 0 ] 2>/dev/null && \
+                printf "  %-10s %s   (RSS: %s MB, prover: %s)\n" "$part" "$(format_duration_ms $ms)" "$(aa_get PEAK_RSS_PROOF "$part")" "$(aa_get PROVER_USED "$part")"
+        done
+        echo "  TOTAL:     $(format_duration_ms $TOTAL_PROOF_MS)"
+        echo ""
+
+        # Verification
+        echo "--- Verificacion ---"
+        for part in "${PARTS[@]}"; do
+            local ms=$(aa_get TIMING_VERIFY_MS "$part")
+            [ "$ms" -gt 0 ] 2>/dev/null && \
+                printf "  %-10s %s\n" "$part" "$(format_duration_ms $ms)"
+        done
+        echo "  TOTAL:     $(format_duration_ms $TOTAL_VERIFY_MS)"
+        echo ""
+        echo "=============================================="
+    } | tee "$v2_file"
+
+    log_info "Metrics v2 saved to: $v2_file"
+}
+
+# Silent version for auto-save (overwrites single file, no console output)
+save_metrics_v2_quiet() {
+    local end_ms=$(now_ms)
+    local total_ms=$((end_ms - PIPELINE_START_TIME_MS))
+    local v2_file="$LOG_DIR/metrics_v2_latest.txt"
+
+    {
+        echo "=============================================="
+        echo "  METRICS REPORT v2 (live)"
+        echo "  $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "=============================================="
+        echo ""
+        echo "--- Hardware ---"
+        echo "  CPU:       $HW_CPU_MODEL"
+        echo "  Cores:     $HW_CPU_CORES"
+        echo "  RAM:       ${HW_RAM_TOTAL_MB} MB"
+        echo "  OS:        $HW_OS"
+        echo ""
+        echo "--- Software ---"
+        echo "  Circom:    $SW_CIRCOM"
+        echo "  Node:      $SW_NODE (max ${NODE_MEM} MB)"
+        echo ""
+        echo "--- Total ---"
+        echo "  Pipeline:  $(format_duration_ms $total_ms)"
+        echo ""
+
+        echo "--- Compilacion ---"
+        for part in "${PARTS[@]}"; do
+            local ms=$(aa_get TIMING_COMPILE_MS "$part")
+            [ "$ms" -gt 0 ] 2>/dev/null && \
+                printf "  %-10s %s   (r1cs: %s)\n" "$part" "$(format_duration_ms $ms)" "$(format_size $(aa_get ARTIFACT_R1CS_BYTES "$part"))"
+        done
+        echo "  TOTAL:     $(format_duration_ms $TOTAL_COMPILE_MS)"
+        echo ""
+
+        echo "--- Generacion de testigos ---"
+        for part in "${PARTS[@]}"; do
+            local ms=$(aa_get TIMING_WITNESS_MS "$part")
+            [ "$ms" -gt 0 ] 2>/dev/null && \
+                printf "  %-10s %s   (RSS: %s MB)\n" "$part" "$(format_duration_ms $ms)" "$(aa_get PEAK_RSS_WITNESS "$part")"
+        done
+        echo "  TOTAL:     $(format_duration_ms $TOTAL_WITNESS_MS)"
+        echo ""
+
+        echo "--- Trusted Setup (zkey) ---"
+        for part in "${PARTS[@]}"; do
+            local ms=$(aa_get TIMING_ZKEY_MS "$part")
+            [ "$ms" -gt 0 ] 2>/dev/null && \
+                printf "  %-10s %s   (RSS: %s MB)\n" "$part" "$(format_duration_ms $ms)" "$(aa_get PEAK_RSS_ZKEY "$part")"
+        done
+        echo "  TOTAL:     $(format_duration_ms $TOTAL_ZKEY_MS)"
+        echo ""
+
+        echo "--- Generacion de pruebas ---"
+        for part in "${PARTS[@]}"; do
+            local ms=$(aa_get TIMING_PROOF_MS "$part")
+            [ "$ms" -gt 0 ] 2>/dev/null && \
+                printf "  %-10s %s   (RSS: %s MB, prover: %s)\n" "$part" "$(format_duration_ms $ms)" "$(aa_get PEAK_RSS_PROOF "$part")" "$(aa_get PROVER_USED "$part")"
+        done
+        echo "  TOTAL:     $(format_duration_ms $TOTAL_PROOF_MS)"
+        echo ""
+
+        echo "--- Verificacion ---"
+        for part in "${PARTS[@]}"; do
+            local ms=$(aa_get TIMING_VERIFY_MS "$part")
+            [ "$ms" -gt 0 ] 2>/dev/null && \
+                printf "  %-10s %s\n" "$part" "$(format_duration_ms $ms)"
+        done
+        echo "  TOTAL:     $(format_duration_ms $TOTAL_VERIFY_MS)"
+        echo ""
+        echo "=============================================="
+    } > "$v2_file"
 }

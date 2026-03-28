@@ -639,21 +639,25 @@ main() {
             compile_all
             print_timing_report
             save_timing_report
+            save_metrics_v2
             ;;
         --witness-only)
             generate_all_witnesses
             print_timing_report
             save_timing_report
+            save_metrics_v2
             ;;
         --zkey-only)
             generate_all_zkeys
             print_timing_report
             save_timing_report
+            save_metrics_v2
             ;;
         --proof-only)
             generate_all_proofs
             print_timing_report
             save_timing_report
+            save_metrics_v2
             ;;
         --export-verifiers)
             export_verifiers
@@ -692,6 +696,7 @@ main() {
             print_summary
             print_timing_report
             save_timing_report
+            save_metrics_v2
             dashboard_finish
             ;;
     esac

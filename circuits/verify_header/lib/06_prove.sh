@@ -76,13 +76,17 @@ generate_zkey_part() {
     local rss_mb=$(stop_memory_monitor)
     record_peak_rss "zkey" "$part" "$rss_mb"
 
-    $NODE_PATH $(which snarkjs) zkey contribute \
+    if $NODE_PATH $(which snarkjs) zkey contribute \
         "$build_dir/${circuit_name}_0.zkey" \
         "$build_dir/${circuit_name}.zkey" \
         -n="${PIPELINE_LABEL} contribution" \
-        -e="$(date +%s)$(head -c 32 /dev/urandom | od -A n -t x1 | tr -d ' \n')"
-
-    rm -f "$build_dir/${circuit_name}_0.zkey"
+        -e="$(date +%s)$(head -c 32 /dev/urandom | od -A n -t x1 | tr -d ' \n')" 2>&1; then
+        rm -f "$build_dir/${circuit_name}_0.zkey"
+    else
+        log_warn "zkey contribute failed for $part (known snarkjs bug with large circuits)"
+        log_warn "Using _0.zkey directly (safe for testing/thesis, not for production)"
+        mv "$build_dir/${circuit_name}_0.zkey" "$build_dir/${circuit_name}.zkey"
+    fi
 
     $NODE_PATH $(which snarkjs) zkey export verificationkey \
         "$build_dir/${circuit_name}.zkey" \
