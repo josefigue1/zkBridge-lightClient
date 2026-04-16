@@ -1,0 +1,16 @@
+[package]
+name = "groth16-aggregator-program"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = "6.0.1"
+groth16-aggregator-lib = { path = "../lib" }
+ark-bn254 = { version = "0.4", default-features = false, features = ["curve"] }
+ark-groth16 = { version = "0.4", default-features = false }
+ark-ff = { version = "0.4", default-features = false }
+ark-ec = { version = "0.4", default-features = false }
+ark-snark = { version = "0.4", default-features = false }
+ark-std = { version = "0.4", default-features = false }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }

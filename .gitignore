@@ -21,6 +21,12 @@ circuits/**/*_cpp/
 **/vkey.json
 **/calldata.txt
 
+# Rust build artifacts
+**/target/
+
+# SP1 aggregated proof binary
+**/*.bin
+
 # logs / crash dumps
 **/logs/
 **/*.log

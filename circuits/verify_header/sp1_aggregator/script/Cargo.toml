@@ -1,0 +1,21 @@
+[package]
+name = "groth16-aggregator-script"
+version = "0.1.0"
+edition = "2021"
+default-run = "aggregator"
+
+[[bin]]
+name = "aggregator"
+path = "src/bin/main.rs"
+
+[dependencies]
+sp1-sdk = { version = "6.0.1", features = ["blocking", "native-gnark"] }
+groth16-aggregator-lib = { path = "../lib" }
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
+dotenv = "0.15"
+bincode = "1"
+
+[build-dependencies]
+sp1-build = "6.0.1"
