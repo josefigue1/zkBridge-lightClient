@@ -3,8 +3,9 @@
 // =============================================================================
 // Loads 8 Groth16 proof sets (proof.json, public.json, vkey.json) from the
 // circom build directory, feeds them to the SP1 guest program, and either:
-//   --execute : runs in the zkVM without generating a proof (fast, for testing)
-//   --prove   : generates a single SP1 proof that attests all 8 are valid
+//   --execute  : runs in the zkVM without generating a proof (fast, for testing)
+//   --prove    : generates a compressed SP1 STARK proof
+//   --prove --groth16 : wraps the proof in Groth16 for on-chain verification
 // =============================================================================
 
 use std::path::Path;
@@ -34,9 +35,13 @@ struct Args {
     #[arg(long)]
     execute: bool,
 
-    /// Generate an SP1 proof (compressed STARK)
+    /// Generate an SP1 proof (compressed STARK by default)
     #[arg(long)]
     prove: bool,
+
+    /// Wrap the SP1 proof in Groth16 for on-chain verification (~260 bytes)
+    #[arg(long)]
+    groth16: bool,
 
     /// Specific parts to verify (comma-separated, default: all 8)
     #[arg(long, value_delimiter = ',')]
@@ -73,8 +78,13 @@ fn main() {
 
     let args = Args::parse();
 
-    if args.execute == args.prove {
+    if args.execute == args.prove && !args.groth16 {
         eprintln!("Error: Specify either --execute or --prove");
+        std::process::exit(1);
+    }
+
+    if args.groth16 && args.execute {
+        eprintln!("Error: --groth16 requires --prove, not --execute");
         std::process::exit(1);
     }
 
@@ -121,8 +131,67 @@ fn main() {
         println!("  Total cycles:    {}", report.total_instruction_count());
         println!("  Execution time:  {:.2?}", elapsed);
         println!("  ─────────────────────────────────────────────");
+    } else if args.groth16 {
+        // ─── Prove mode: Groth16-wrapped for on-chain verification ───
+        println!("  Mode: PROVE (Groth16-wrapped for on-chain verification)\n");
+
+        let setup_start = Instant::now();
+        let pk = client
+            .setup(AGGREGATOR_ELF)
+            .expect("SP1 setup failed");
+        println!("  Setup time: {:.2?}", setup_start.elapsed());
+
+        let prove_start = Instant::now();
+        let proof = client
+            .prove(&pk, stdin)
+            .groth16()
+            .run()
+            .expect("SP1 Groth16 proving failed");
+        let prove_elapsed = prove_start.elapsed();
+
+        println!("  SP1 Groth16 proof generated!");
+        println!("  Prove time: {:.2?}", prove_elapsed);
+
+        // Verify
+        let verify_start = Instant::now();
+        match client.verify(&proof, pk.verifying_key(), None) {
+            Ok(()) => println!("  SP1 Groth16 proof verified in {:.2?}", verify_start.elapsed()),
+            Err(e) => {
+                let prover_mode = std::env::var("SP1_PROVER").unwrap_or_default();
+                if prover_mode == "mock" {
+                    println!("  SP1 mock proof generated (verification skipped in mock mode)");
+                } else {
+                    panic!("SP1 Groth16 proof verification failed: {:?}", e);
+                }
+            }
+        }
+
+        // Save Groth16 proof
+        let proof_path = build_dir.join("sp1_aggregated_proof_groth16.bin");
+        let serialized = bincode::serialize(&proof).expect("Failed to serialize proof");
+        std::fs::write(&proof_path, &serialized).expect("Failed to write proof");
+
+        // Also save the raw proof bytes and vkey for on-chain use
+        let solidity_proof_path = build_dir.join("sp1_groth16_proof.json");
+        let proof_data = serde_json::json!({
+            "proof": hex::encode(proof.bytes()),
+            "public_values": hex::encode(proof.public_values.as_slice()),
+            "vkey": pk.verifying_key().bytes32(),
+        });
+        std::fs::write(&solidity_proof_path, serde_json::to_string_pretty(&proof_data).unwrap())
+            .expect("Failed to write Solidity proof JSON");
+
+        println!();
+        println!("  ─────────────────────────────────────────────");
+        println!("  SP1 Groth16 proof saved to:");
+        println!("    {}", proof_path.display());
+        println!("  Proof size: {} bytes", serialized.len());
+        println!();
+        println!("  On-chain data (proof + vkey):");
+        println!("    {}", solidity_proof_path.display());
+        println!("  ─────────────────────────────────────────────");
     } else {
-        // ─── Prove mode: generate SP1 proof ───
+        // ─── Prove mode: compressed STARK ───
         println!("  Mode: PROVE (generating compressed SP1 proof)\n");
 
         let setup_start = Instant::now();
