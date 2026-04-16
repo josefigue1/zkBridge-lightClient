@@ -15,7 +15,7 @@ use clap::Parser;
 use groth16_aggregator_lib::{AggregatorInput, PartInput};
 use sp1_sdk::{
     blocking::{Prover, ProverClient, ProveRequest},
-    include_elf, Elf, ProvingKey, SP1Stdin,
+    include_elf, Elf, HashableKey, ProvingKey, SP1Stdin,
 };
 
 /// The compiled SP1 guest program (RISC-V ELF).
